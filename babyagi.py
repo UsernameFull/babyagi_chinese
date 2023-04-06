@@ -21,6 +21,9 @@ USE_GPT4 = False
 if USE_GPT4:
     print("\033[91m\033[1m"+"\n*****USING GPT-4. POTENTIALLY EXPENSIVE. MONITOR YOUR COSTS*****"+"\033[0m\033[0m")
 
+# Use chinese prompt
+ZH_CN_PROMPT = True
+
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 assert PINECONE_API_KEY, "PINECONE_API_KEY environment variable is missing from .env"
 
@@ -94,7 +97,10 @@ def openai_call(prompt: str, use_gpt4: bool = False, temperature: float = 0.5, m
         return response.choices[0].message.content.strip()
 
 def task_creation_agent(objective: str, result: Dict, task_description: str, task_list: List[str], gpt_version: str = 'gpt-3'):
-    prompt = f"You are an task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective}, The last completed task has the result: {result}. This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}. Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks. Return the tasks as an array."
+    if ZH_CN_PROMPT:
+        prompt = f"你是一个用于任务创建的人工智能，使用执行代理的结果来创建新任务，目标如下：{objective}。上一个已完成的任务结果为：{result}。该结果基于以下任务描述：{task_description}。这些是未完成的任务列表：{', '.join(task_list)}。根据结果，创建新的且不与未完成的任务重复的AI系统要完成的任务，并将其作为数组返回。"
+    else:
+        prompt = f"You are an task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective}, The last completed task has the result: {result}. This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}. Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks. Return the tasks as an array."
     response = openai_call(prompt, USE_GPT4)
     new_tasks = response.split('\n')
     return [{"task_name": task_name} for task_name in new_tasks]
@@ -103,10 +109,16 @@ def prioritization_agent(this_task_id:int, gpt_version: str = 'gpt-3'):
     global task_list
     task_names = [t["task_name"] for t in task_list]
     next_task_id = int(this_task_id)+1
-    prompt = f"""You are an task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}. Consider the ultimate objective of your team:{OBJECTIVE}. Do not remove any tasks. Return the result as a numbered list, like:
-    #. First task
-    #. Second task
-    Start the task list with number {next_task_id}."""
+    if ZH_CN_PROMPT:
+        prompt = f"""你是一个任务优先级AI，负责清理并重新排列以下任务：{task_names}。考虑你的团队的最终目标：{OBJECTIVE}。不要删除任何任务。将结果作为编号列表返回，如下所示：
+        #. 第一个任务
+        #. 第二个任务
+        从编号{next_task_id}开始任务列表。"""
+    else:
+        prompt = f"""You are an task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}. Consider the ultimate objective of your team:{OBJECTIVE}. Do not remove any tasks. Return the result as a numbered list, like:
+        #. First task
+        #. Second task
+        Start the task list with number {next_task_id}."""
     response = openai_call(prompt, USE_GPT4)
     new_tasks = response.split('\n')
     task_list = deque()
@@ -122,7 +134,10 @@ def execution_agent(objective:str,task: str, gpt_version: str = 'gpt-3') -> str:
     context=context_agent(index=YOUR_TABLE_NAME, query=objective, n=5)
     #print("\n*******RELEVANT CONTEXT******\n")
     #print(context)
-    prompt =f"You are an AI who performs one task based on the following objective: {objective}.\nTake into account these previously completed tasks: {context}\nYour task: {task}\nResponse:"
+    if ZH_CN_PROMPT:
+        prompt =f"你是一个基于以下目标：{objective}的AI。\n考虑这些以前完成的任务：{context}\n你的任务：{task}\n回复："
+    else: 
+        prompt =f"You are an AI who performs one task based on the following objective: {objective}.\nTake into account these previously completed tasks: {context}\nYour task: {task}\nResponse:"
     return openai_call(prompt, USE_GPT4, 0.7, 2000)
 
 def context_agent(query: str, index: str, n: int):
